@@ -4,14 +4,9 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"io/ioutil"
+	"strconv"
 	"testing"
 )
-
-func check(e error) {
-	if e != nil {
-		panic(e)
-	}
-}
 
 func TestHandlers(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -21,60 +16,61 @@ func TestHandlers(t *testing.T) {
 var _ = Describe("Parse Chase emails", func() {
 
 	var (
-		emailbody string
-		spambody  string
+		emailbody           string
+		expectedTransaction Transaction
+		lastDigits          = "1234"
+		amountString        = "109.00"
+		merchant            = "Test Mer\\chant.com"
+		date                = "2020-10-13"
 	)
 
 	BeforeEach(func() {
 		dat, err := ioutil.ReadFile("testemails/chaseEmail.txt")
 		check(err)
 		emailbody = string(dat)
-		dat, err = ioutil.ReadFile("testemails/testspam.txt")
-		check(err)
-		spambody = string(dat)
 		setupChase()
+		digits, _ := strconv.Atoi(lastDigits)
+		amount, _ := strconv.ParseFloat(amountString, 32)
+		expectedTransaction = Transaction{
+			LastDigits: digits,
+			Date:       date,
+			Amount:     float32(amount),
+			Merchant:   merchant,
+		}
 	})
 
 	Context("When given an email body to parse, ", func() {
-		It("checks for validation string", func() {
-			err := validateEmail(emailbody, chaseString)
-			Expect(err).ShouldNot(HaveOccurred())
-		})
-		It("fails the validation string for spam", func() {
-			err := validateEmail(spambody, chaseString)
-			Expect(err).Should(HaveOccurred())
-		})
 
 		It("parses the last 4 digits", func() {
 			test, err := getLastDigits(emailbody)
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(test).To(Equal("1234"))
+			Expect(test).To(Equal(lastDigits))
 		})
 
 		It("grabs the spend amount", func() {
 			test, err := getSpendAmount(emailbody)
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(test).To(Equal("109.00"))
+			Expect(test).To(Equal(amountString))
 		})
 
 		It("grabs the Merchant", func() {
 			test, err := getMerchant(emailbody)
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(test).To(Equal("Test Mer\\chant.com"))
+			Expect(test).To(Equal(merchant))
 		})
 
 		It("grabs the date", func() {
 			test, err := getDate(emailbody)
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(test).To(Equal("Oct 13, 2020"))
+			Expect(test).To(Equal(date))
 		})
 
-		It("parses the date", func() {
-			test, _ := getDate(emailbody)
-			date, err := parseDate(test)
+		It("parses everything correctly", func() {
+			transaction, err := parseEmail(emailbody)
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(date).To(Equal("2020-10-13"))
+			Expect(transaction).To(Equal(expectedTransaction))
 		})
+
 	})
 
 })
@@ -83,28 +79,16 @@ var _ = Describe("Parse BofA emails", func() {
 
 	var (
 		emailbody string
-		spambody  string
 	)
 
 	BeforeEach(func() {
 		dat, err := ioutil.ReadFile("testemails/bofAEmail.txt")
 		check(err)
 		emailbody = string(dat)
-		dat, err = ioutil.ReadFile("testemails/testspam.txt")
-		check(err)
-		spambody = string(dat)
 		setupBofA()
 	})
 
 	Context("When given an email body to parse, ", func() {
-		It("checks for validation string", func() {
-			err := validateEmail(emailbody, bofaString)
-			Expect(err).ShouldNot(HaveOccurred())
-		})
-		It("fails the validation string for spam", func() {
-			err := validateEmail(spambody, bofaString)
-			Expect(err).Should(HaveOccurred())
-		})
 
 		It("parses the last 4 digits", func() {
 			test, err := getLastDigits(emailbody)
@@ -127,15 +111,9 @@ var _ = Describe("Parse BofA emails", func() {
 		It("grabs the date", func() {
 			test, err := getDate(emailbody)
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(test).To(Equal("October 13, 2020"))
+			Expect(test).To(Equal("2020-10-13"))
 		})
 
-		It("parses the date", func() {
-			test, _ := getDate(emailbody)
-			date, err := parseDate(test)
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(date).To(Equal("2020-10-13"))
-		})
 	})
 
 })

@@ -3,9 +3,19 @@ package main
 import (
 	"errors"
 	"fmt"
+	"github.com/joho/godotenv"
+	"io/ioutil"
+	"log"
+	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 )
 
 var (
@@ -16,17 +26,71 @@ var (
 	merchantRegex  string
 	dateRegex      string
 	dateLayout     string
+	setupDone      = false
 )
 
-func main() {
-	fmt.Println("hello world!")
+type Transaction struct {
+	MessageID  string `json:"messageID"`
+	LastDigits int
+	Date       string
+	Amount     float32
+	Merchant   string
 }
 
-func validateEmail(contents, validation string) error {
-	if strings.Contains(contents, validation) {
-		return nil
+func main() {
+	// check if variable is already setup
+	bucket := os.Getenv("BUCKET_NAME")
+	if bucket == "" {
+		// Probably running locally. Load variables from .env file instead.
+		err := godotenv.Load(".env")
+
+		if err != nil {
+			log.Fatalf("Error loading .env file")
+		}
+		bucket = os.Getenv("BUCKET_NAME")
 	}
-	return errors.New("email does not contain check string")
+
+	table := os.Getenv("TABLE_NAME")
+
+	if bucket == "" {
+		panic("Missing s3 bucket name")
+	}
+
+	if table == "" {
+		panic("Missing DynamoDB table name")
+	}
+
+	contents, err := retreiveMail()
+	check(err)
+
+	if strings.Contains(contents, chaseString) {
+		setupChase()
+	} else if strings.Contains(contents, bofaString) {
+		setupBofA()
+	}
+
+	if setupDone == false {
+		panic("Email does not match a parser")
+	}
+
+	transaction, err := parseEmail(contents)
+	check(err)
+	transaction.MessageID = "test"
+	err = saveToDynamoDB(transaction, table)
+	check(err)
+}
+
+func check(e error) {
+	if e != nil {
+		panic(e)
+	}
+}
+
+func retreiveMail() (string, error) {
+	dat, err := ioutil.ReadFile("testemails/chaseEmail.txt")
+	check(err)
+	emailBody := string(dat)
+	return emailBody, nil
 }
 
 func setupChase() {
@@ -35,6 +99,7 @@ func setupChase() {
 	merchantRegex = "A charge of \\(\\$USD\\) \\d+\\.\\d+ at (.*) has been authorized on .* at"
 	dateRegex = "A charge of \\(\\$USD\\) \\d+\\.\\d+ at .* has been authorized on (.*) at"
 	dateLayout = "Jan 02, 2006"
+	setupDone = true
 }
 
 func setupBofA() {
@@ -43,6 +108,29 @@ func setupBofA() {
 	merchantRegex = "Where: (.*)\\n"
 	dateRegex = "Date: (.*)\\n"
 	dateLayout = "January 02, 2006"
+	setupDone = true
+}
+
+func parseEmail(contents string) (Transaction, error) {
+	lastDigitsString, err := getLastDigits(contents)
+	check(err)
+	lastDigits, err := strconv.Atoi(lastDigitsString)
+	check(err)
+	date, err := getDate(contents)
+	check(err)
+	amountString, err := getSpendAmount(contents)
+	check(err)
+	amount, err := strconv.ParseFloat(amountString, 32)
+	check(err)
+	payee, err := getMerchant(contents)
+	check(err)
+	transaction := Transaction{
+		LastDigits: lastDigits,
+		Date:       date,
+		Amount:     float32(amount),
+		Merchant:   payee,
+	}
+	return transaction, nil
 }
 
 func extractInformation(contents, title, regex string, num int) (string, error) {
@@ -70,11 +158,47 @@ func getMerchant(contents string) (string, error) {
 }
 
 func getDate(contents string) (string, error) {
-	return extractInformation(contents, "date", dateRegex, 1)
+	date, _ := extractInformation(contents, "date", dateRegex, 1)
+	return parseDate(date)
 }
 
 func parseDate(date string) (string, error) {
 	newDateFormat := "2006-01-02"
 	t, _ := time.Parse(dateLayout, date)
 	return t.Format(newDateFormat), nil
+}
+
+func saveToDynamoDB(transaction Transaction, tableName string) error {
+	// Initialize a session that the SDK will use to load
+	// credentials from the shared credentials file ~/.aws/credentials
+	// and region from the shared configuration file ~/.aws/config.
+	sess := session.Must(session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+	}))
+
+	// Create DynamoDB client
+	svc := dynamodb.New(sess)
+
+	av, err := dynamodbattribute.MarshalMap(transaction)
+	if err != nil {
+		fmt.Println("Got error marshalling new transaction:")
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+
+	input := &dynamodb.PutItemInput{
+		Item:      av,
+		TableName: aws.String(tableName),
+		//ConditionExpression:      aws.String("attribute_not_exists(messageID)"),
+	}
+
+	_, err = svc.PutItem(input)
+	if err != nil {
+		fmt.Println("Got error calling PutItem:")
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+
+	fmt.Println("Successfully added transaction to table " + tableName)
+	return nil
 }
