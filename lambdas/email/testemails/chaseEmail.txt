@@ -1,0 +1,37 @@
+Delivered-To: asdf@gmail.com
+Received: by
+X-Google-Smtp-Source:
+X-Received:
+ARC-Seal:
+ARC-Message-Signature:
+ARC-Authentication-Results:
+Return-Path: <no.reply.alerts.06@chase.com>
+Received:
+Received-SPF:
+Authentication-Results:
+Received:
+DKIM-Filter:
+DKIM-Signature:
+Received:
+Date:
+From:
+To:
+Message-ID:
+Subject: Your Single Transaction Alert from Chase
+MIME-Version:
+Content-Type:
+Content-Transfer-Encoding:
+NOTIFICATION-ID:
+RETRY-COUNT: 0
+
+
+This is an Alert to help you manage your credit card account ending in 1234.
+
+As you requested, we are notifying you of any charges over the amount of ($USD) 0.00, as specified in your Alert settings.
+A charge of ($USD) 109.00 at Test Mer\chant.com has been authorized on Oct 13, 2020 at 11:27 AM ET.
+
+Do not reply to this Alert.
+
+If you have questions, please call the number on the back of your credit card, or send a secure message from your Inbox on www.chase.com.
+
+To see all of the Alerts available to you, or to manage your Alert settings, please log on to www.chase.com.

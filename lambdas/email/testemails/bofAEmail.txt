@@ -1,0 +1,50 @@
+Received:
+DKIM-Filter:
+DKIM-Signature:
+Received:
+Date:
+From:
+To:
+Message-ID:
+Subject: Credit card transaction exceeds alert limit you set
+MIME-Version:
+Content-Type:
+Content-Transfer-Encoding:
+NOTIFICATION-ID:
+RETRY-COUNT: 0
+
+
+Credit card transaction exceeds alert limit you set
+
+Your Visa Signature ending in 5678
+
+Amount: $9.99
+Date: October 13, 2020
+Where: LARGE.COM PROVIDER
+
+View details by going to=20
+
+
+If you made this purchase or payment but don't recognize the amount,=20
+wait until the final purchase amount has posted before filing a dispute
+claim.
+
+If you don't recognize this activity, please contact us at the number=20
+on the back of your card.
+
+Did you know?=20
+You can choose how you get alerts from us including text messages and=20
+mobile notifications. Go to Alert Settings at=20
+
+
+
+We'll never ask for your personal information such as SSN or ATM PIN in=20
+email messages. If you get an email that looks suspicious or you are not=20
+the intended recipient of this email, don't click on any links. Instead,=20
+forward to abuse@bankofamerica.com then delete it.
+
+Please don't reply to this automatically generated service email.=20
+
+
+
+=20
