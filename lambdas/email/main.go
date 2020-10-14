@@ -19,14 +19,10 @@ import (
 )
 
 var (
-	chaseString    = "Your Single Transaction Alert from Chase"
-	bofaString     = "Credit card transaction exceeds alert limit you set"
-	fourDigitRegex string
-	amountRegex    string
-	merchantRegex  string
-	dateRegex      string
-	dateLayout     string
-	setupDone      = false
+	parsers        []Parser
+	selectedParser Parser
+	bucket         string
+	table          string
 )
 
 type Transaction struct {
@@ -37,7 +33,17 @@ type Transaction struct {
 	Merchant   string
 }
 
-func main() {
+type Parser struct {
+	name             string
+	validationString string
+	fourDigitRegex   string
+	amountRegex      string
+	merchantRegex    string
+	dateRegex        string
+	dateLayout       string
+}
+
+func init() {
 	// check if variable is already setup
 	bucket := os.Getenv("BUCKET_NAME")
 	if bucket == "" {
@@ -45,7 +51,7 @@ func main() {
 		err := godotenv.Load(".env")
 
 		if err != nil {
-			log.Fatalf("Error loading .env file")
+			log.Fatal("Error loading .env file")
 		}
 		bucket = os.Getenv("BUCKET_NAME")
 	}
@@ -53,77 +59,83 @@ func main() {
 	table := os.Getenv("TABLE_NAME")
 
 	if bucket == "" {
-		panic("Missing s3 bucket name")
+		log.Fatal("Missing bucket name")
 	}
 
 	if table == "" {
-		panic("Missing DynamoDB table name")
+		log.Fatal("Missing dynamoDB table name")
 	}
+}
+
+func main() {
 
 	contents, err := retreiveMail()
-	check(err)
-
-	if strings.Contains(contents, chaseString) {
-		setupChase()
-	} else if strings.Contains(contents, bofaString) {
-		setupBofA()
+	if err != nil {
+		log.Fatalf("Could not retrieve mail: " + err.Error())
 	}
 
-	if setupDone == false {
-		panic("Email does not match a parser")
+	for _, parser := range parsers {
+		if strings.Contains(contents, parser.validationString) {
+			selectedParser = parser
+		}
+	}
+
+	if selectedParser == (Parser{}) {
+		log.Fatal("Email does not match a parser")
 	}
 
 	transaction, err := parseEmail(contents)
-	check(err)
+	if err != nil {
+		log.Fatalf("Could not parse mail: " + err.Error())
+	}
+
 	transaction.MessageID = "test"
 	err = saveToDynamoDB(transaction, table)
-	check(err)
-}
-
-func check(e error) {
-	if e != nil {
-		panic(e)
+	if err != nil {
+		log.Fatalf("Could not save record to DynamoDB: " + err.Error())
 	}
 }
 
 func retreiveMail() (string, error) {
 	dat, err := ioutil.ReadFile("testemails/chaseEmail.txt")
-	check(err)
+	if err != nil {
+		return "", err
+	}
 	emailBody := string(dat)
 	return emailBody, nil
 }
 
-func setupChase() {
-	fourDigitRegex = "ending in (\\d+)"
-	amountRegex = "A charge of \\(\\$USD\\) (\\d+\\.\\d+) at .* has been authorized on .* at"
-	merchantRegex = "A charge of \\(\\$USD\\) \\d+\\.\\d+ at (.*) has been authorized on .* at"
-	dateRegex = "A charge of \\(\\$USD\\) \\d+\\.\\d+ at .* has been authorized on (.*) at"
-	dateLayout = "Jan 02, 2006"
-	setupDone = true
-}
-
-func setupBofA() {
-	fourDigitRegex = "ending in (\\d+)"
-	amountRegex = "Amount: \\$(\\d+\\.\\d+)"
-	merchantRegex = "Where: (.*)\\n"
-	dateRegex = "Date: (.*)\\n"
-	dateLayout = "January 02, 2006"
-	setupDone = true
-}
-
 func parseEmail(contents string) (Transaction, error) {
 	lastDigitsString, err := getLastDigits(contents)
-	check(err)
+	if err != nil {
+		return Transaction{}, err
+	}
+
 	lastDigits, err := strconv.Atoi(lastDigitsString)
-	check(err)
+	if err != nil {
+		return Transaction{}, err
+	}
+
 	date, err := getDate(contents)
-	check(err)
+	if err != nil {
+		return Transaction{}, err
+	}
+
 	amountString, err := getSpendAmount(contents)
-	check(err)
+	if err != nil {
+		return Transaction{}, err
+	}
+
 	amount, err := strconv.ParseFloat(amountString, 32)
-	check(err)
+	if err != nil {
+		return Transaction{}, err
+	}
+
 	payee, err := getMerchant(contents)
-	check(err)
+	if err != nil {
+		return Transaction{}, err
+	}
+
 	transaction := Transaction{
 		LastDigits: lastDigits,
 		Date:       date,
@@ -133,38 +145,38 @@ func parseEmail(contents string) (Transaction, error) {
 	return transaction, nil
 }
 
-func extractInformation(contents, title, regex string, num int) (string, error) {
+func extractInformation(contents, title, regex string) (string, error) {
 	re, err := regexp.Compile(regex)
 	if err != nil {
 		return "", errors.New("error compiling " + title + " regex")
 	}
 	match := re.FindStringSubmatch(contents)
 	if match != nil {
-		return match[num], nil
+		return match[1], nil
 	}
 	return "", errors.New("could not parse " + title + " regex")
 }
 
 func getLastDigits(contents string) (string, error) {
-	return extractInformation(contents, "last four digits", fourDigitRegex, 1)
+	return extractInformation(contents, "last four digits", selectedParser.fourDigitRegex)
 }
 
 func getSpendAmount(contents string) (string, error) {
-	return extractInformation(contents, "amount", amountRegex, 1)
+	return extractInformation(contents, "amount", selectedParser.amountRegex)
 }
 
 func getMerchant(contents string) (string, error) {
-	return extractInformation(contents, "merchant", merchantRegex, 1)
+	return extractInformation(contents, "merchant", selectedParser.merchantRegex)
 }
 
 func getDate(contents string) (string, error) {
-	date, _ := extractInformation(contents, "date", dateRegex, 1)
+	date, _ := extractInformation(contents, "date", selectedParser.dateRegex)
 	return parseDate(date)
 }
 
 func parseDate(date string) (string, error) {
 	newDateFormat := "2006-01-02"
-	t, _ := time.Parse(dateLayout, date)
+	t, _ := time.Parse(selectedParser.dateLayout, date)
 	return t.Format(newDateFormat), nil
 }
 
@@ -185,6 +197,8 @@ func saveToDynamoDB(transaction Transaction, tableName string) error {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
+
+	os.Exit(0)
 
 	input := &dynamodb.PutItemInput{
 		Item:      av,
