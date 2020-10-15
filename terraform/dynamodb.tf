@@ -13,9 +13,4 @@ resource "aws_dynamodb_table" "dynamodb-table" {
     type = "S"
   }
 
-  ttl {
-    attribute_name = "TimeToExist"
-    enabled        = false
-  }
-
 }

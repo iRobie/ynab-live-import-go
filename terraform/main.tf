@@ -4,22 +4,14 @@ provider "aws" {
   version = "~> 2.7.0"
 }
 
-resource "aws_iam_policy" "policy" {
-  name        = "get-ynab-s3-objects"
-  description = "Policy to access S3 bucket with YNAB emails"
+//Make the bin files for upload
+resource "null_resource" "makefile" {
+  provisioner "local-exec" {
+    command = "make"
+    working_dir = "../"
+  }
+}
 
-  policy = <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Action": [
-        "s3:GetObject"
-      ],
-      "Effect": "Allow",
-      "Resource": "${aws_s3_bucket.bucket.arn}"
-    }
-  ]
-}
-EOF
-}
+// Get account ID
+data "aws_caller_identity" "current" {}
+
