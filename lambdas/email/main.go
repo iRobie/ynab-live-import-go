@@ -45,7 +45,7 @@ type Parser struct {
 
 func init() {
 	// check if variable is already setup
-	bucket := os.Getenv("BUCKET_NAME")
+	bucket = os.Getenv("BUCKET_NAME")
 	if bucket == "" {
 		// Probably running locally. Load variables from .env file instead.
 		err := godotenv.Load(".env")
@@ -56,7 +56,11 @@ func init() {
 		bucket = os.Getenv("BUCKET_NAME")
 	}
 
-	table := os.Getenv("TABLE_NAME")
+	table = os.Getenv("TABLE_NAME")
+
+}
+
+func main() {
 
 	if bucket == "" {
 		log.Fatal("Missing bucket name")
@@ -65,9 +69,6 @@ func init() {
 	if table == "" {
 		log.Fatal("Missing dynamoDB table name")
 	}
-}
-
-func main() {
 
 	contents, err := retreiveMail()
 	if err != nil {

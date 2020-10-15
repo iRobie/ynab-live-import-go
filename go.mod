@@ -7,4 +7,5 @@ require (
 	github.com/joho/godotenv v1.3.0
 	github.com/onsi/ginkgo v1.12.0
 	github.com/onsi/gomega v1.9.0
+	go.bmvs.io/ynab v1.3.0
 )
