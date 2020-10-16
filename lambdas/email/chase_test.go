@@ -9,8 +9,10 @@ import (
 var _ = Describe("Parse Chase emails", func() {
 
 	var (
-		emailbody           string
-		expectedTransaction Transaction
+		emailbody             string
+		expectedTransaction   Transaction
+		s3messageid           string
+		s3expectedTransaction Transaction
 	)
 
 	BeforeEach(func() {
@@ -18,6 +20,14 @@ var _ = Describe("Parse Chase emails", func() {
 		emailbody = string(dat)
 		selectedParser = chaseParser()
 		expectedTransaction = Transaction{
+			MessageID:  "",
+			LastDigits: 1234,
+			Date:       "2020-10-13",
+			Amount:     109.00,
+			Merchant:   "Test Mer\\chant.com",
+		}
+		s3messageid = "bcj8lmbp2jisnc64028514oqbiuv8lcg9r35aqo1"
+		s3expectedTransaction = Transaction{
 			MessageID:  "",
 			LastDigits: 1234,
 			Date:       "2020-10-13",
@@ -34,6 +44,16 @@ var _ = Describe("Parse Chase emails", func() {
 			Expect(transaction).To(Equal(expectedTransaction))
 		})
 
+	})
+
+	Context("When downloading a mail from S3, ", func() {
+
+		It("parses the function correctly", func() {
+			mailbody, err := retreiveMail(s3messageid)
+			Expect(err).To(BeNil())
+			transaction, err := parseEmail(mailbody)
+			Expect(transaction).To(Equal(s3expectedTransaction))
+		})
 	})
 
 })

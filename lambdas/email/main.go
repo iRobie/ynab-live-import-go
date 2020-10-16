@@ -1,11 +1,14 @@
 package main
 
 import (
-	"errors"
 	"fmt"
+	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/joho/godotenv"
+	"io"
 	"io/ioutil"
 	"log"
+	"mime/quotedprintable"
+	"net/mail"
 	"os"
 	"regexp"
 	"strconv"
@@ -16,6 +19,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
+
+	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-sdk-go/service/s3"
 )
 
 var (
@@ -23,6 +29,7 @@ var (
 	selectedParser Parser
 	bucket         string
 	table          string
+	s3Client       *s3.S3
 )
 
 type Transaction struct {
@@ -58,6 +65,11 @@ func init() {
 
 	table = os.Getenv("TABLE_NAME")
 
+	err := createS3Client("us-west-2")
+	if err != nil {
+		log.Fatalf("Error creating S3 client: " + err.Error())
+	}
+
 }
 
 func main() {
@@ -70,40 +82,99 @@ func main() {
 		log.Fatal("Missing dynamoDB table name")
 	}
 
-	contents, err := retreiveMail()
-	if err != nil {
-		log.Fatalf("Could not retrieve mail: " + err.Error())
-	}
-
-	for _, parser := range parsers {
-		if strings.Contains(contents, parser.validationString) {
-			selectedParser = parser
-		}
-	}
-
-	if selectedParser == (Parser{}) {
-		log.Fatal("Email does not match a parser")
-	}
-
-	transaction, err := parseEmail(contents)
-	if err != nil {
-		log.Fatalf("Could not parse mail: " + err.Error())
-	}
-
-	transaction.MessageID = "test"
-	err = saveToDynamoDB(transaction, table)
-	if err != nil {
-		log.Fatalf("Could not save record to DynamoDB: " + err.Error())
-	}
+	lambda.Start(HandleLambdaEvent)
 }
 
-func retreiveMail() (string, error) {
-	dat, err := ioutil.ReadFile("testemails/chaseEmail.txt")
+func HandleLambdaEvent(event events.SimpleEmailEvent) error {
+
+	for _, sesMail := range event.Records {
+
+		//Retrieve message from S3
+		mailbody, err := retreiveMail(sesMail.SES.Mail.MessageID)
+
+		if err != nil {
+			log.Print("Error retrieving mail")
+			return err
+		}
+
+		for _, parser := range parsers {
+			if strings.Contains(mailbody, parser.validationString) {
+				selectedParser = parser
+			}
+		}
+
+		if selectedParser == (Parser{}) {
+			log.Print("Email does not match a parser")
+			return fmt.Errorf("email does not match a parser")
+		}
+
+		transaction, err := parseEmail(mailbody)
+		if err != nil {
+			log.Printf("Could not parse mail: %s", err)
+			return err
+		}
+
+		transaction.MessageID = sesMail.SES.Mail.MessageID
+		err = saveToDynamoDB(transaction, table)
+		if err != nil {
+			log.Printf("Could not save record to DynamoDB: %s", err)
+			return err
+		}
+
+	}
+	return nil
+}
+
+func createS3Client(region string) error {
+	sess, err := session.NewSession()
 	if err != nil {
+		return err
+	}
+	s3Client = s3.New(sess, aws.NewConfig().WithRegion(region))
+	return nil
+}
+
+func retreiveMail(messageid string) (string, error) {
+	//Retrieve message from S3
+	s3Mail, err := getFromS3(messageid)
+	if err != nil {
+		log.Printf("get message from S3 failed: %s", err)
 		return "", err
 	}
-	emailBody := string(dat)
-	return emailBody, nil
+
+	defer s3Mail.Close()
+
+	// parse the original message
+	parsedMail, err := mail.ReadMessage(s3Mail)
+	if err != nil {
+		log.Printf("ReadMessage failed: %s", err)
+		return "", err
+	}
+
+	// message is quoted printable
+	body := parsedMail.Body
+	b, err := ioutil.ReadAll(quotedprintable.NewReader(body))
+
+	if err != nil {
+		log.Printf("error decoding quoted printable mail: %s", err)
+		return "", err
+	}
+
+	return string(b), err
+
+}
+
+func getFromS3(key string) (io.ReadCloser, error) {
+
+	obj, err := s3Client.GetObject(&s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		log.Printf("S3 GetObject failed: %s", err)
+		return nil, err
+	}
+	return obj.Body, nil
 }
 
 func parseEmail(contents string) (Transaction, error) {
@@ -149,13 +220,15 @@ func parseEmail(contents string) (Transaction, error) {
 func extractInformation(contents, title, regex string) (string, error) {
 	re, err := regexp.Compile(regex)
 	if err != nil {
-		return "", errors.New("error compiling " + title + " regex")
+		log.Printf("error compiling " + title + " regex")
+		return "", fmt.Errorf("error compiling " + title + " regex")
 	}
 	match := re.FindStringSubmatch(contents)
 	if match != nil {
 		return match[1], nil
 	}
-	return "", errors.New("could not parse " + title + " regex")
+	log.Printf("could not parse " + title + " regex")
+	return "", fmt.Errorf("could not parse " + title + " regex")
 }
 
 func getLastDigits(contents string) (string, error) {
@@ -194,12 +267,9 @@ func saveToDynamoDB(transaction Transaction, tableName string) error {
 
 	av, err := dynamodbattribute.MarshalMap(transaction)
 	if err != nil {
-		fmt.Println("Got error marshalling new transaction:")
-		fmt.Println(err.Error())
-		os.Exit(1)
+		log.Printf("Got error marshalling new transaction: %s", err.Error())
+		return err
 	}
-
-	os.Exit(0)
 
 	input := &dynamodb.PutItemInput{
 		Item:      av,
@@ -209,11 +279,10 @@ func saveToDynamoDB(transaction Transaction, tableName string) error {
 
 	_, err = svc.PutItem(input)
 	if err != nil {
-		fmt.Println("Got error calling PutItem:")
-		fmt.Println(err.Error())
-		os.Exit(1)
+		log.Printf("Got error calling PutItem: %s", err.Error())
+		return err
 	}
 
-	fmt.Println("Successfully added transaction to table " + tableName)
+	log.Println("Successfully added transaction to table " + tableName)
 	return nil
 }

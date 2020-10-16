@@ -60,7 +60,9 @@ resource "aws_iam_policy" "gets3objects" {
         "s3:GetObject"
       ],
       "Effect": "Allow",
-      "Resource": "${aws_s3_bucket.bucket.arn}"
+      "Resource": [
+                "${aws_s3_bucket.bucket.arn}/*"
+            ]
     }
   ]
 }
@@ -95,6 +97,11 @@ resource "aws_iam_role_policy_attachment" "email-policy-attachment-s3" {
 resource "aws_iam_role_policy_attachment" "email-policy-attachment-dynamo" {
   role       = aws_iam_role.email_parser.name
   policy_arn = aws_iam_policy.putDynamo.arn
+}
+
+resource "aws_iam_role_policy_attachment" "email-policy-executionrole" {
+  role       = aws_iam_role.email_parser.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
 // Allow SES to call lambda function
