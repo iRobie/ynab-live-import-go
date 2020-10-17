@@ -13,7 +13,7 @@ func bofAParser() Parser {
 		fourDigitRegex:   "ending in (\\d+)",
 		amountRegex:      "Amount: \\$(\\d+\\.\\d+)",
 		merchantRegex:    "Where: (.*)\\n",
-		dateRegex:        "Date: (.*)\\nWhere:",
+		dateRegex:        "(?m)Date: (.*)[\\r\\n\\v]+Where:",
 		dateLayout:       "January 02, 2006",
 	}
 	return parser

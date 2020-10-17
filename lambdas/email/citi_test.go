@@ -6,7 +6,7 @@ import (
 	"io/ioutil"
 )
 
-var _ = Describe("Parse Chase emails", func() {
+var _ = Describe("Parse Citi emails", func() {
 
 	var (
 		emailbody             string
@@ -16,17 +16,17 @@ var _ = Describe("Parse Chase emails", func() {
 	)
 
 	BeforeEach(func() {
-		dat, _ := ioutil.ReadFile("testemails/chaseEmail.txt")
+		dat, _ := ioutil.ReadFile("testemails/citiEmail.html")
 		emailbody = string(dat)
-		selectedParser = chaseParser()
+		selectedParser = citiParser()
 		expectedTransaction = Transaction{
 			MessageID:  "",
-			LastDigits: 1234,
-			Date:       "2020-10-15",
-			Amount:     109.00,
-			Merchant:   "Test Mer\\chant.com",
+			LastDigits: 2345,
+			Date:       "2020-10-14",
+			Amount:     12.34,
+			Merchant:   "I AM A LARGE #MERCHANT",
 		}
-		s3messageid = "bcj8lmbp2jisnc64028514oqbiuv8lcg9r35aqo1"
+		s3messageid = "3871qtv1f3f4r911mm68nrodkp3gtcmvkn25eq81"
 		s3expectedTransaction = Transaction{
 			MessageID:  "",
 			LastDigits: 1234,
@@ -36,6 +36,8 @@ var _ = Describe("Parse Chase emails", func() {
 		}
 		_ = s3messageid
 		_ = s3expectedTransaction
+		_ = emailbody
+		_ = expectedTransaction
 	})
 
 	Context("When given an email body to parse, ", func() {

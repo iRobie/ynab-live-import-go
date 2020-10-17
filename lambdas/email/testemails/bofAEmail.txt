@@ -19,7 +19,7 @@ Credit card transaction exceeds alert limit you set
 Your Visa Signature ending in 5678
 
 Amount: $9.99
-Date: October 13, 2020
+Date: October 15, 2020
 Where: LARGE.COM PROVIDER
 
 View details by going to=20

@@ -90,7 +90,7 @@ func HandleLambdaEvent(event events.SimpleEmailEvent) error {
 	for _, sesMail := range event.Records {
 
 		//Retrieve message from S3
-		mailbody, err := retreiveMail(sesMail.SES.Mail.MessageID)
+		mailbody, err := retrieveMail(sesMail.SES.Mail.MessageID)
 
 		if err != nil {
 			log.Print("Error retrieving mail")
@@ -121,6 +121,9 @@ func HandleLambdaEvent(event events.SimpleEmailEvent) error {
 			return err
 		}
 
+		// Delete the message - moved deletion to dynamo poster
+		// If dynamo runs into an error, I want to see original email
+
 	}
 	return nil
 }
@@ -134,7 +137,7 @@ func createS3Client(region string) error {
 	return nil
 }
 
-func retreiveMail(messageid string) (string, error) {
+func retrieveMail(messageid string) (string, error) {
 	//Retrieve message from S3
 	s3Mail, err := getFromS3(messageid)
 	if err != nil {
@@ -175,6 +178,19 @@ func getFromS3(key string) (io.ReadCloser, error) {
 		return nil, err
 	}
 	return obj.Body, nil
+}
+
+func deleteS3Object(key string) error {
+
+	_, err := s3Client.DeleteObject(&s3.DeleteObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		log.Printf("S3 DeleteObject failed: %s", err)
+		return err
+	}
+	return nil
 }
 
 func parseEmail(contents string) (Transaction, error) {
@@ -224,9 +240,13 @@ func extractInformation(contents, title, regex string) (string, error) {
 		return "", fmt.Errorf("error compiling " + title + " regex")
 	}
 	match := re.FindStringSubmatch(contents)
+
 	if match != nil {
-		return match[1], nil
+		matchstring := match[1]
+		readLine := strings.TrimRight(matchstring, "\r\n")
+		return readLine, nil
 	}
+
 	log.Printf("could not parse " + title + " regex")
 	return "", fmt.Errorf("could not parse " + title + " regex")
 }
@@ -244,14 +264,14 @@ func getMerchant(contents string) (string, error) {
 }
 
 func getDate(contents string) (string, error) {
-	date, _ := extractInformation(contents, "date", selectedParser.dateRegex)
+	dateString, _ := extractInformation(contents, "date", selectedParser.dateRegex)
+	date, _ := time.Parse(selectedParser.dateLayout, dateString)
 	return parseDate(date)
 }
 
-func parseDate(date string) (string, error) {
+func parseDate(date time.Time) (string, error) {
 	newDateFormat := "2006-01-02"
-	t, _ := time.Parse(selectedParser.dateLayout, date)
-	return t.Format(newDateFormat), nil
+	return date.Format(newDateFormat), nil
 }
 
 func saveToDynamoDB(transaction Transaction, tableName string) error {

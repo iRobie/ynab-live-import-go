@@ -1,0 +1,47 @@
+{
+  "Records": [
+    {
+      "eventID": "f07f8ca4b0b26cb9c4e5e77e69f274ee",
+      "eventName": "INSERT",
+      "eventVersion": "1.1",
+      "eventSource": "aws:dynamodb",
+      "awsRegion": "us-east-1",
+      "userIdentity":{
+        "type":"Service",
+        "principalId":"dynamodb.amazonaws.com"
+      },
+      "dynamodb": {
+        "ApproximateCreationDateTime": 1480642020,
+        "Keys": {
+          "val": {
+            "S": "data"
+          },
+          "key": {
+            "S": "binary"
+          }
+        },
+        "NewImage": {
+          "Amount": {
+            "N": "56.78"
+          },
+          "Date": {
+            "S": "2020-10-14"
+          },
+          "LastDigits": {
+            "N": "1234"
+          },
+          "Merchant": {
+            "S": "Github"
+          },
+          "messageID": {
+            "S": "asdfasdfasdfasdf"
+          }
+        },
+        "SequenceNumber": "1405400000000002063282832",
+        "SizeBytes": 54,
+        "StreamViewType": "NEW_AND_OLD_IMAGES"
+      },
+      "eventSourceARN": "arn:aws:dynamodb:us-east-1:123456789012:table/Example-Table/stream/2016-12-01T00:00:00.000"
+    }
+  ]
+}
