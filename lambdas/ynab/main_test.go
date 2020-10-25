@@ -56,6 +56,7 @@ var _ = Describe("Handle DynamoDBEvent", func() {
 
 		date, _ := api.DateFromString("2020-10-13")
 		memo := "Imported via email"
+		_ = memo
 		expectedPayloadTransaction = ynabtransaction.PayloadTransaction{
 			AccountID:  "fakeaccountid",
 			Date:       date,
@@ -65,9 +66,9 @@ var _ = Describe("Handle DynamoDBEvent", func() {
 			PayeeID:    nil,
 			PayeeName:  &expectedTransaction.Merchant,
 			CategoryID: nil,
-			Memo:       &memo,
-			FlagColor:  nil,
-			ImportID:   nil,
+			//Memo:       &memo,
+			FlagColor: nil,
+			ImportID:  nil,
 		}
 
 	})

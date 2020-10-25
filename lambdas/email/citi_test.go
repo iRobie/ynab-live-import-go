@@ -1,9 +1,11 @@
 package main
 
 import (
+	"github.com/aws/aws-lambda-go/events"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"io/ioutil"
+	"time"
 )
 
 var _ = Describe("Parse Citi emails", func() {
@@ -13,12 +15,13 @@ var _ = Describe("Parse Citi emails", func() {
 		expectedTransaction   Transaction
 		s3messageid           string
 		s3expectedTransaction Transaction
+		request               events.SimpleEmailEvent
 	)
 
 	BeforeEach(func() {
 		dat, _ := ioutil.ReadFile("testemails/citiEmail.html")
 		emailbody = string(dat)
-		selectedParser = citiParser()
+		//selectedParser = citiParser()
 		expectedTransaction = Transaction{
 			MessageID:  "",
 			LastDigits: 2345,
@@ -26,7 +29,28 @@ var _ = Describe("Parse Citi emails", func() {
 			Amount:     12.34,
 			Merchant:   "I AM A LARGE #MERCHANT",
 		}
-		s3messageid = "3871qtv1f3f4r911mm68nrodkp3gtcmvkn25eq81"
+		s3messageid = "b2t449562tmdi2429vuj52k78qjus09rr8gr5301"
+
+		record := events.SimpleEmailRecord{
+			EventVersion: "",
+			EventSource:  "",
+			SES: events.SimpleEmailService{
+				Mail: events.SimpleEmailMessage{
+					CommonHeaders:    events.SimpleEmailCommonHeaders{},
+					Source:           "",
+					Timestamp:        time.Time{},
+					Destination:      nil,
+					Headers:          nil,
+					HeadersTruncated: false,
+					MessageID:        s3messageid,
+				},
+				Receipt: events.SimpleEmailReceipt{},
+			},
+		}
+		request = events.SimpleEmailEvent{
+			Records: []events.SimpleEmailRecord{record},
+		}
+
 		s3expectedTransaction = Transaction{
 			MessageID:  "",
 			LastDigits: 1234,
@@ -50,14 +74,12 @@ var _ = Describe("Parse Citi emails", func() {
 
 	})
 
-	//Context("When downloading a mail from S3, ", func() {
-	//
-	//	It("parses the function correctly", func() {
-	//		mailbody, err := retrieveMail(s3messageid)
-	//		Expect(err).To(BeNil())
-	//		transaction, err := parseEmail(mailbody)
-	//		Expect(transaction).To(Equal(s3expectedTransaction))
-	//	})
-	//})
+	Context("When downloading a mail from S3, ", func() {
+
+		It("parses the function correctly", func() {
+			err := HandleLambdaEvent(request)
+			Expect(err).To(BeNil())
+		})
+	})
 
 })

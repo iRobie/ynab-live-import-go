@@ -9,7 +9,7 @@ func init() {
 func citiParser() Parser {
 	parser := Parser{
 		name:             "Citi",
-		validationString: "transaction was made on your Costco Anywhere account",
+		validationString: "transaction made on your Costco Anywhere account",
 		//fourDigitRegex:   "#666666;\\\">(\\d\\d\\d\\d)<\\/span",
 		fourDigitRegex: "Card ending in (\\d+)",
 		amountRegex:    "A \\$(\\d+\\.\\d+) transaction was made",

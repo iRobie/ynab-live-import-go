@@ -9,7 +9,7 @@ func init() {
 func chaseParser() Parser {
 	parser := Parser{
 		name:             "Chase",
-		validationString: "Your Single Transaction Alert from Chase",
+		validationString: "secure message from your Inbox on www.chase.com",
 		fourDigitRegex:   "ending in (\\d+)",
 		amountRegex:      "A charge of \\(\\$USD\\) (\\d+\\.\\d+) at .* has been authorized on .* at",
 		merchantRegex:    "A charge of \\(\\$USD\\) \\d+\\.\\d+ at (.*) has been authorized on .* at",

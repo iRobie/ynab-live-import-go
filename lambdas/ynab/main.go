@@ -244,7 +244,7 @@ func getPayload(record Transaction, account budgetAccount) (payloadTransaction y
 
 	amount := int64(record.Amount * -1000)
 	payee := record.Merchant
-	memo := "Imported via email"
+	//memo := "Imported via email"
 
 	payloadTransaction = ynabtransaction.PayloadTransaction{
 		AccountID: account.account.ID,
@@ -252,7 +252,6 @@ func getPayload(record Transaction, account budgetAccount) (payloadTransaction y
 		Amount:    amount,
 		Cleared:   "uncleared",
 		PayeeName: &payee,
-		Memo:      &memo,
 	}
 
 	return

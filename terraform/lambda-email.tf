@@ -3,9 +3,6 @@ data "archive_file" "email" {
   type        = "zip"
   source_file = "../bin/email"
   output_path = "../bin/email.zip"
-  depends_on = [
-    null_resource.makefile,
-  ]
 }
 
 // Create lambda function
@@ -22,6 +19,7 @@ resource "aws_lambda_function" "email" {
     variables = {
       BUCKET_NAME = aws_s3_bucket.bucket.bucket
       TABLE_NAME = aws_dynamodb_table.dynamodb-table.name
+      SLACK_URL = var.slack_url
     }
   }
 }

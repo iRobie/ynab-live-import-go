@@ -1,13 +1,17 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/joho/godotenv"
 	"io"
 	"io/ioutil"
+	"jaytaylor.com/html2text"
 	"log"
 	"mime/quotedprintable"
+	"net/http"
 	"net/mail"
 	"os"
 	"regexp"
@@ -15,12 +19,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
-
-	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go/service/s3"
 )
 
@@ -48,6 +51,52 @@ type Parser struct {
 	merchantRegex    string
 	dateRegex        string
 	dateLayout       string
+}
+
+type SlackRequestBody struct {
+	Text string `json:"text"`
+}
+
+func notifyError(message string, err error) {
+	slackURL := os.Getenv("SLACK_URL")
+	var errorString string
+	if err != nil {
+		errorString = fmt.Sprintf("Error from Email parser - %s:\n```%s```", message, err.Error())
+	} else {
+		errorString = fmt.Sprintf("Error from Email parser - %s", message)
+	}
+
+	log.Print(errorString)
+	serr := SendSlackNotification(slackURL, errorString)
+	if serr != nil {
+		log.Fatal(serr)
+	}
+}
+
+// SendSlackNotification will post to an 'Incoming Webook' url setup in Slack Apps. It accepts
+// some text and the slack channel is saved within Slack.
+func SendSlackNotification(webhookUrl string, msg string) error {
+
+	slackBody, _ := json.Marshal(SlackRequestBody{Text: msg})
+	req, err := http.NewRequest(http.MethodPost, webhookUrl, bytes.NewBuffer(slackBody))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Add("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(resp.Body)
+	if buf.String() != "ok" {
+		return fmt.Errorf("Non-ok response returned from Slack")
+	}
+	return nil
 }
 
 func init() {
@@ -90,34 +139,34 @@ func HandleLambdaEvent(event events.SimpleEmailEvent) error {
 	for _, sesMail := range event.Records {
 
 		//Retrieve message from S3
-		mailbody, err := retrieveMail(sesMail.SES.Mail.MessageID)
+		mailBody, err := retrieveMail(sesMail.SES.Mail.MessageID)
 
 		if err != nil {
-			log.Print("Error retrieving mail")
+			notifyError("Error retrieving mail", err)
 			return err
 		}
 
 		for _, parser := range parsers {
-			if strings.Contains(mailbody, parser.validationString) {
+			if strings.Contains(mailBody, parser.validationString) {
 				selectedParser = parser
 			}
 		}
 
 		if selectedParser == (Parser{}) {
-			log.Print("Email does not match a parser")
+			notifyError("Email does not match a parser. Mailbody below.", fmt.Errorf(mailBody))
 			return fmt.Errorf("email does not match a parser")
 		}
 
-		transaction, err := parseEmail(mailbody)
+		transaction, err := parseEmail(mailBody)
 		if err != nil {
-			log.Printf("Could not parse mail: %s", err)
+			notifyError("Could not parse mail", err)
 			return err
 		}
 
 		transaction.MessageID = sesMail.SES.Mail.MessageID
 		err = saveToDynamoDB(transaction, table)
 		if err != nil {
-			log.Printf("Could not save record to DynamoDB: %s", err)
+			notifyError("Could not save record to DynamoDB", err)
 			return err
 		}
 
@@ -163,7 +212,14 @@ func retrieveMail(messageid string) (string, error) {
 		return "", err
 	}
 
-	return string(b), err
+	// Might be HTML as well
+	mailBody, err := getPlainText(string(b))
+	if err != nil {
+		log.Printf("error checking for HTML string: %s", err)
+		return "", err
+	}
+
+	return mailBody, nil
 
 }
 
@@ -249,6 +305,28 @@ func extractInformation(contents, title, regex string) (string, error) {
 
 	log.Printf("could not parse " + title + " regex")
 	return "", fmt.Errorf("could not parse " + title + " regex")
+}
+
+func getPlainText(contents string) (string, error) {
+	htmlString := "(<html)"
+	re, err := regexp.Compile(htmlString)
+	if err != nil {
+		log.Printf("error compiling html regex")
+		return "", fmt.Errorf("error compiling html regex")
+	}
+	match := re.FindStringSubmatch(contents)
+
+	if match != nil {
+		// Possible this was an HTML email. Try to decode
+		text, err := html2text.FromString(contents)
+		if err != nil {
+			return "", err
+		}
+		return text, nil
+	}
+
+	// No matches found. Not HTML.
+	return contents, nil
 }
 
 func getLastDigits(contents string) (string, error) {

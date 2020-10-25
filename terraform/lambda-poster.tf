@@ -2,9 +2,6 @@ data "archive_file" "ynab" {
   type        = "zip"
   source_file = "../bin/ynab"
   output_path = "../bin/ynab.zip"
-  depends_on = [
-    null_resource.makefile,
-  ]
 }
 
 resource "aws_lambda_function" "poster" {

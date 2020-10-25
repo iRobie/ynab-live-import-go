@@ -26,7 +26,7 @@ var _ = Describe("Parse Chase emails", func() {
 			Amount:     109.00,
 			Merchant:   "Test Mer\\chant.com",
 		}
-		s3messageid = "bcj8lmbp2jisnc64028514oqbiuv8lcg9r35aqo1"
+		s3messageid = "5u8qddo35demvf0klm0647mg2bprkpcaqucgkd01"
 		s3expectedTransaction = Transaction{
 			MessageID:  "",
 			LastDigits: 1234,

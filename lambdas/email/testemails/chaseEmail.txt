@@ -1,30 +1,3 @@
-Delivered-To: asdf@gmail.com
-Received: by
-X-Google-Smtp-Source:
-X-Received:
-ARC-Seal:
-ARC-Message-Signature:
-ARC-Authentication-Results:
-Return-Path: <no.reply.alerts.06@chase.com>
-Received:
-Received-SPF:
-Authentication-Results:
-Received:
-DKIM-Filter:
-DKIM-Signature:
-Received:
-Date:
-From:
-To:
-Message-ID:
-Subject: Your Single Transaction Alert from Chase
-MIME-Version:
-Content-Type:
-Content-Transfer-Encoding:
-NOTIFICATION-ID:
-RETRY-COUNT: 0
-
-
 This is an Alert to help you manage your credit card account ending in 1234.
 
 As you requested, we are notifying you of any charges over the amount of ($USD) 0.00, as specified in your Alert settings.
